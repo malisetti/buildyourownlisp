@@ -19,11 +19,11 @@ typedef struct {
 	int type;
 	union {
 		int err;
-		long num;
+		double num;
 	} data;
 } lval;
 
-lval lval_num(long x) {
+lval lval_num(double x) {
 	lval v;
 	v.type = LVAL_NUM;
 	v.data.num = x;
@@ -40,7 +40,7 @@ lval lval_err(int x) {
 void lval_print(lval v) {
 	switch (v.type) {
 		case LVAL_NUM:
-			printf("%li", v.data.num);
+			printf("%f", v.data.num);
 			break;
 		case LVAL_ERR:
 			if (v.data.err == LERR_DIV_ZERO) {
@@ -82,10 +82,10 @@ lval eval_op(lval x, char* op, lval y) {
 		return	y.data.num == 0 ? lval_err(LERR_DIV_ZERO) : lval_num(x.data.num / y.data.num);
 	}
 	if (strcmp(op, "%") == 0){
-		return lval_num(x.data.num % y.data.num);
+		return lval_num((x.data.num - y.data.num * floor(x.data.num / y.data.num)));
 	}
 	if (strcmp(op, "^") == 0){
-		long raise = x.data.num;
+		double raise = x.data.num;
 		while (--y.data.num) {
 			raise = raise * x.data.num;
 		}
@@ -111,9 +111,13 @@ lval eval_op(lval x, char* op, lval y) {
 
 lval eval(mpc_ast_t* t) {
 	if (strstr(t->tag, "number")) {
-		errno = 0;
-		long x = strtol(t->contents, NULL, 10);
-		return errno != ERANGE ? lval_num(x) : lval_err(LERR_BAD_NUM);
+		char *err;
+		double x = strtod(t->contents, &err);
+		if (err == t->contents) { 
+			return lval_err(LERR_BAD_NUM);
+		} else {
+			return lval_num(x);
+		}
 	}
 
 	char* op = t->children[1]->contents;
@@ -142,7 +146,7 @@ int main(int argc, char** argv) {
 	
 	mpca_lang(MPCA_LANG_DEFAULT,
 	"			\
-	 number : /-?[0-9]+/ ;  \
+	 number : /-?[0-9]+(\\.[0-9]+)?/ ;  \
 	 operator : '+' | '-' | '*' | '/' | '%' | '^' | \"min\" | \"max\" ; \
 	 expr : <number> | '(' <operator> <expr>+ ')' ; \
 	 lispy : /^/ <operator> <expr>+ /$/; \
