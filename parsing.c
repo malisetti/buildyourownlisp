@@ -17,37 +17,39 @@ enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
 // If type is 0 then the structure is a Number.", or "If type is 1 then the structure is an Error.
 typedef struct {
 	int type;
-	long num;
-	int err;
+	union {
+		int err;
+		long num;
+	} data;
 } lval;
 
 lval lval_num(long x) {
 	lval v;
 	v.type = LVAL_NUM;
-	v.num = x;
+	v.data.num = x;
 	return v;
 }
 
 lval lval_err(int x) {
 	lval v;
 	v.type = LVAL_ERR;
-	v.err = x;
+	v.data.err = x;
 	return v;
 }
 
 void lval_print(lval v) {
 	switch (v.type) {
 		case LVAL_NUM:
-			printf("%li", v.num);
+			printf("%li", v.data.num);
 			break;
 		case LVAL_ERR:
-			if (v.err == LERR_DIV_ZERO) {
+			if (v.data.err == LERR_DIV_ZERO) {
 				printf("Error: Division By Zero!");
 			} 
-			if (v.err == LERR_BAD_OP) {
+			if (v.data.err == LERR_BAD_OP) {
 				printf("Error: Invalid Operator!");
 			}
-			if (v.err == LERR_BAD_NUM) {
+			if (v.data.err == LERR_BAD_NUM) {
 				printf("Error: Invalid Number!");
 			}
 			break;
@@ -68,39 +70,39 @@ lval eval_op(lval x, char* op, lval y) {
 	}
 
 	if (strcmp(op, "+") == 0){
-		return lval_num(x.num + y.num);
+		return lval_num(x.data.num + y.data.num);
 	}
 	if (strcmp(op, "-") == 0){
-		return lval_num(x.num - y.num);
+		return lval_num(x.data.num - y.data.num);
 	}
 	if (strcmp(op, "*") == 0){
-		return lval_num(x.num * y.num);
+		return lval_num(x.data.num * y.data.num);
 	}
 	if (strcmp(op, "/") == 0){
-		return	y.num == 0 ? lval_err(LERR_DIV_ZERO) : lval_num(x.num / y.num);
+		return	y.data.num == 0 ? lval_err(LERR_DIV_ZERO) : lval_num(x.data.num / y.data.num);
 	}
 	if (strcmp(op, "%") == 0){
-		return lval_num(x.num % y.num);
+		return lval_num(x.data.num % y.data.num);
 	}
 	if (strcmp(op, "^") == 0){
-		long raise = x.num;
-		while (--y.num) {
-			raise = raise * x.num;
+		long raise = x.data.num;
+		while (--y.data.num) {
+			raise = raise * x.data.num;
 		}
 		return lval_num(raise);
 	}
 	if (strcmp(op, "max") == 0){
-		if (x.num > y.num) {
-			return lval_num(x.num);
+		if (x.data.num > y.data.num) {
+			return lval_num(x.data.num);
 		} else {
-			return lval_num(y.num);
+			return lval_num(y.data.num);
 		}
 	}
 	if (strcmp(op, "min") == 0){
-		if (x.num > y.num) {
-			return lval_num(y.num);
+		if (x.data.num > y.data.num) {
+			return lval_num(y.data.num);
 		} else {
-			return lval_num(x.num);
+			return lval_num(x.data.num);
 		}
 	}
 
@@ -123,7 +125,7 @@ lval eval(mpc_ast_t* t) {
 		i++;
 	}
 	if (i == 3 && strcmp(op, "-") == 0) {
-		x = lval_num(-1 * x.num);
+		x = lval_num(-1 * x.data.num);
 	}
 
 	return x;
