@@ -12,6 +12,9 @@ enum { LVAL_NUM, LVAL_ERR, LVAL_SYM, LVAL_SEXPR, LVAL_QEXPR };
 // division by zero, bad operation, too large to be represented by long
 enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
 
+#define LASSERT(args, cond, err) \
+        if (!(cond)) { lval_del(args); return lval_err(err); }
+
 // list value
 // If type is 0 then the structure is a Number.", or "If type is 1 then the structure is an Error.
 typedef struct lval {
@@ -299,12 +302,58 @@ lval* lval_eval_sexpr(lval* v) {
         if (f->type != LVAL_SYM) {
                 lval_del(f);
                 lval_del(v);
-                return lval_err("S-expr does not start with symbol");
+                return lval_err("S-expr does not start with symbol!");
         }
         
         lval* result = builtin_op(v, f->sym);
         lval_del(f);
         return result;
+}
+
+lval* builtin_head(lval* a) {
+        if (a->count != 1) {
+                lval_del(a);
+                return lval_err("Function 'head' passed too many arguments!");
+        }
+        
+        if (a->cell[0]->type != LVAL_QEXPR) {
+                lval_del(a);
+                return lval_err("Function 'head' passed incorrect types!");
+        }
+        
+        if (a->cell[0]->count == 0) {
+                lval_del(a);
+                return lval_err("Function 'head' passed {}");
+        }
+        
+        lval* v = lval_take(a, 0);
+        
+        while (v->count > 0) {
+                lval_del(lval_pop(v, 1));
+        }
+        return v;
+}
+
+lval* builtin_tail(lval* a) {
+        if (a->count != 1) {
+                lval_del(a);
+                return lval_err("Function 'tail' passed too many arguments!");
+        }
+        
+        if (a->cell[0]->type != LVAL_QEXPR) {
+                lval_del(a);
+                return lval_err("Function 'tail' passed incorrect types!");
+        }
+        
+        if (a->cell[0]->count == 0) {
+                lval_del(a);
+                return lval_err("Function 'tail' passed {}!");
+        }
+        
+        lval* v = lval_take(a, 0);
+        
+        lval_del(lval_pop(v, 0));
+        return v;
 }
 
 int main(int argc, char** argv) {
@@ -321,7 +370,8 @@ int main(int argc, char** argv) {
 	mpca_lang(MPCA_LANG_DEFAULT,
 	"			\
 	 number : /-?[0-9]+(\\.[0-9]+)?/ ;  \
-	 symbol : '+' | '-' | '*' | '/' | '%' | '^' | \"min\" | \"max\" ; \
+	 symbol : '+' | '-' | '*' | '/' | '%' | '^' | \"min\" | \"max\" \
+	          | \"list\" | \"head\" | \"tail\" | \"join\" | \"eval\" ; \
 	 sexpr : '(' <expr>* ')' ; \
 	 qexpr : '{' <expr>* '}' ; \
 	 expr : <number> | <symbol> | <sexpr> | <qexpr> ; \
