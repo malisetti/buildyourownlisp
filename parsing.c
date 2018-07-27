@@ -32,6 +32,8 @@ void lval_print(lval* v);
 
 lval* lval_eval_sexpr(lval* v);
 
+lval* builtin(lval* a, char* func);
+
 lval* lval_num(double x) {
 	lval* v = malloc(sizeof(lval));
 	v->type = LVAL_NUM;
@@ -270,7 +272,6 @@ lval* builtin_op(lval* a, char* op) {
         return x;
 }
 
-
 lval* lval_eval(lval* v) {
         if (v->type == LVAL_SEXPR) {
                 return lval_eval_sexpr(v);
@@ -305,56 +306,89 @@ lval* lval_eval_sexpr(lval* v) {
                 return lval_err("S-expr does not start with symbol!");
         }
         
-        lval* result = builtin_op(v, f->sym);
+        lval* result = builtin(v, f->sym);
         lval_del(f);
         return result;
 }
 
 lval* builtin_head(lval* a) {
-        if (a->count != 1) {
-                lval_del(a);
-                return lval_err("Function 'head' passed too many arguments!");
-        }
+        LASSERT(a, a->count == 1, "Function 'head' passed too many arguments!");
         
-        if (a->cell[0]->type != LVAL_QEXPR) {
-                lval_del(a);
-                return lval_err("Function 'head' passed incorrect types!");
-        }
+        LASSERT(a, a->cell[0]->type == LVAL_QEXPR, "Function 'head' passed incorrect types!");
         
-        if (a->cell[0]->count == 0) {
-                lval_del(a);
-                return lval_err("Function 'head' passed {}");
-        }
+        LASSERT(a, a->cell[0]->count != 0, "Function 'head' passed {}");
         
         lval* v = lval_take(a, 0);
         
-        while (v->count > 0) {
+        while (v->count > 1) {
                 lval_del(lval_pop(v, 1));
         }
         return v;
 }
 
 lval* builtin_tail(lval* a) {
-        if (a->count != 1) {
-                lval_del(a);
-                return lval_err("Function 'tail' passed too many arguments!");
-        }
+        LASSERT(a, a->count == 1, "Function 'tail' passed too many arguments!");
         
-        if (a->cell[0]->type != LVAL_QEXPR) {
-                lval_del(a);
-                return lval_err("Function 'tail' passed incorrect types!");
-        }
+        LASSERT(a, a->cell[0]->type == LVAL_QEXPR, "Function 'tail' passed incorrect types!");
         
-        if (a->cell[0]->count == 0) {
-                lval_del(a);
-                return lval_err("Function 'tail' passed {}!");
-        }
+        LASSERT(a, a->cell[0]->count != 0, "Function 'tail' passed {}!");
         
         lval* v = lval_take(a, 0);
         
         lval_del(lval_pop(v, 0));
         return v;
 }
+
+// s-expr to q-expr
+lval* builtin_list(lval* a) {
+        a->type = LVAL_QEXPR;
+        return a;
+}
+
+// single Q-Expression, which it converts to an S-Expression, and evaluates using lval_eval
+lval* builtin_eval(lval* a) {
+        LASSERT(a, a->count == 1, "Function 'eval' passed too many arguments!");
+        LASSERT(a, a->cell[0]->type == LVAL_QEXPR, "Function 'eval' passed incorrect type!");
+        
+        lval* x = lval_take(a, 0);
+        x->type = LVAL_SEXPR;
+        return lval_eval(x);
+}
+
+lval* lval_join(lval* x, lval* y) {
+        while (y->count) {
+                x = lval_add(x, lval_pop(y, 0));
+        }
+        
+        lval_del(y);
+        return x;
+}
+
+lval* builtin_join(lval* a) {
+        for (int i = 0; i < a->count; i++) {
+                LASSERT(a, a->cell[i]->type == LVAL_QEXPR, "Function 'join' passed incorrect type");
+        }
+        
+        lval* x = lval_pop(a, 0);
+        while (a->count) {
+                x = lval_join(x, lval_pop(a, 0));
+        }
+        
+        lval_del(a);
+        return x;
+}
+
+lval* builtin(lval* a, char* func) {
+        if (strcmp("list", func) == 0) { return builtin_list(a); }
+        if (strcmp("head", func) == 0) { return builtin_head(a); }
+        if (strcmp("tail", func) == 0) { return builtin_tail(a); }
+        if (strcmp("join", func) == 0) { return builtin_join(a); }
+        if (strcmp("eval", func) == 0) { return builtin_eval(a); }
+        if (strstr("+-/*", func)) { return builtin_op(a, func); }
+        lval_del(a);
+        return lval_err("Unknown Function!");
+}
+
 
 int main(int argc, char** argv) {
 	puts("lispy version 0.0.0.0.1");
